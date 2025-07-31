@@ -1,0 +1,18 @@
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+
+# Node
+node_modules/
+frontend/.svelte-kit/
+frontend/build/
+
+# Editor 
+.vscode/
+*.swp

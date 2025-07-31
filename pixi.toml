@@ -1,0 +1,25 @@
+[workspace]
+authors = ["JacobSlattery <jacobslattery501@gmail.com>"]
+channels = ["conda-forge"]
+name = "my_project"
+platforms = ["win-64"]
+version = "0.1.0"
+
+[dependencies]
+yarn = "*"
+python = ">=3.13.5,<3.14"
+nodejs = ">=24.4.1,<24.5"
+fastapi = ">=0.116.1,<0.117"
+uvicorn = ">=0.35.0,<0.36"
+pytest = ">=8.4.1,<9"
+httpx = ">=0.28.1,<0.29"
+
+
+[tasks]
+start-backend = "uvicorn main:app --reload --app-dir backend/app"
+start-frontend = "yarn --cwd frontend dev"
+
+build-frontend = "yarn --cwd frontend build"
+
+test-backend = "pixi run pytest backend/tests"
+
