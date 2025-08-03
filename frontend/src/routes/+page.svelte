@@ -7,16 +7,16 @@
   let socket = new WebSocket("ws://localhost:8000/ws/waveform");
   let waveformData: [number, number][] = [];
 
-  let frequency = 0;
-  let amplitude = 0;
-  let samples = 0;
-  let cycles = 0;
-  let frame_rate = 0;
+  let frequency = 20;
+  let amplitude = 0.5;
+  let samples = 100;
+  let frame_size = 0.1;
+  let frame_rate = 30;
   let ready = false;
 
   function sendSettings() {
     if (socket?.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ frequency, amplitude, samples, cycles, frame_rate }));
+      socket.send(JSON.stringify({ frequency, amplitude, samples, frame_size, frame_rate }));
     }
   }
 
@@ -37,7 +37,7 @@
   $: if (ready) sendSettings();
 
   $: if (socket?.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ frequency, amplitude, samples, cycles, frame_rate }));
+    socket.send(JSON.stringify({ frequency, amplitude, samples, frame_size, frame_rate }));
   }
 
   onDestroy(() => {
@@ -47,7 +47,7 @@
 
 <div class="flex flex-col md:flex-row h-screen">
   <div class="flex-1 min-w-[300px] p-4 flex flex-col bg-gray-100">
-    <SettingsPanel bind:frequency bind:amplitude bind:samples bind:cycles bind:frame_rate />
+    <SettingsPanel bind:frequency bind:amplitude bind:samples bind:frame_size bind:frame_rate />
   </div>
   <div class="flex-1 min-w-[300px] p-4 flex flex-col relative">
     <WaveformChart data={waveformData} width={800} height={400} />
