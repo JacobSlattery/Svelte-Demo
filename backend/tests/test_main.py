@@ -6,4 +6,4 @@ client = TestClient(app)
 def test_read_root():
     resp = client.get("/")
     assert resp.status_code == 200
-    assert resp.json() == {"message": "Hello from FastAPI!"}
+    assert resp.json() == {"message": "Hello World!"}
