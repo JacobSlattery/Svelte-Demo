@@ -1,20 +1,55 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import SettingsPanel from '../lib/SettingsPanel.svelte';
   import WaveformChart from '../lib/WaveformChart.svelte';
 
-  // shared settings state
-  let settings = {
-    amplitude: 1,
-    frequency: 2
-  };
+
+  let socket = new WebSocket("ws://localhost:8000/ws/waveform");
+  let waveformData: [number, number][] = [];
+
+  let frequency = 0;
+  let amplitude = 0;
+  let samples = 0;
+  let cycles = 0;
+  let frame_rate = 0;
+  let ready = false;
+
+  function sendSettings() {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ frequency, amplitude, samples, cycles, frame_rate }));
+    }
+  }
+
+  onMount(() => {
+    socket = new WebSocket('ws://localhost:8000/ws/waveform');
+    socket.addEventListener('open', () => {
+      console.log('WebSocket connection established');
+      ready = true;
+      sendSettings();
+    });
+
+    socket.addEventListener('message', (evt) => {
+      const msg = JSON.parse(evt.data);
+      waveformData = msg.data;
+    });
+  });
+
+  $: if (ready) sendSettings();
+
+  $: if (socket?.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ frequency, amplitude, samples, cycles, frame_rate }));
+  }
+
+  onDestroy(() => {
+    socket?.close();
+  });
 </script>
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
-  <aside class="col-span-1">
-    <SettingsPanel bind:settings />
-  </aside>
-
-  <main class="w-screen h-screen flex flex-col">
-    <WaveformChart />
-  </main>
+<div class="flex flex-col md:flex-row h-screen">
+  <div class="flex-1 min-w-[300px] p-4 flex flex-col bg-gray-100">
+    <SettingsPanel bind:frequency bind:amplitude bind:samples bind:cycles bind:frame_rate />
+  </div>
+  <div class="flex-1 min-w-[300px] p-4 flex flex-col relative">
+    <WaveformChart data={waveformData} width={800} height={400} />
+  </div>
 </div>

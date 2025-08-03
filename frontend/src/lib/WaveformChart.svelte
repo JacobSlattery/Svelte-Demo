@@ -1,66 +1,61 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  let chartDiv: HTMLDivElement;
-  let chart: import('echarts').ECharts;
-  let ro: ResizeObserver;
+  import { onDestroy, onMount } from 'svelte';
+  import * as echarts from 'echarts';
+  import type { ECharts, EChartsOption } from 'echarts';
 
-  // your waveform function
-  function func(x: number) {
-    x /= 10;
-    return Math.sin(x) * Math.cos(x * 2 + 1) * Math.sin(x * 3 + 2) * 50;
-  }
+  export let data: [number, number][] = [];
+  export let width = 500;
+  export let height = 400;
 
-  function generateData() {
-    const data: [number, number][] = [];
-    for (let i = -200; i <= 200; i += 0.1) {
-      data.push([i, func(i)]);
-    }
-    return data;
-  }
+  let chartDom: HTMLDivElement;
+  let chart: ECharts;
 
-  function getOption() {
-    return {
-      animation: false,
-      grid: { top: 40, left: 50, right: 40, bottom: 50 },
+  onMount(() => {
+    chart = echarts.init(chartDom);
+
+    const option: EChartsOption = {
+      animation: true,
+      grid: {
+        top: 40,
+        left: 50,
+        right: 40,
+        bottom: 50
+      },
       xAxis: {
-        name: 'x',
-        minorTick: { show: true },
-        minorSplitLine: { show: true }
+        show: false,
       },
       yAxis: {
-        name: 'y',
-        min: -100,
-        max: 100,
-        minorTick: { show: true },
-        minorSplitLine: { show: true }
+        show: false,
+        min: -1,
+        max: 1,
       },
-      dataZoom: [
-        { show: true, type: 'inside', filterMode: 'none', xAxisIndex: [0], startValue: -20, endValue: 20 },
-        { show: true, type: 'inside', filterMode: 'none', yAxisIndex: [0], startValue: -20, endValue: 20 }
-      ],
-      series: [{ type: 'line', showSymbol: false, clip: true, data: generateData() }]
+      series: [
+        {
+          type: 'line',
+          showSymbol: false,
+          clip: true,
+          data: data
+        }
+      ]
     };
-  }
 
-  function updateChart() {
-    if (chart) {
-      chart.setOption(getOption());
-    }
-  }
-
-  onMount(async () => {
-    const echarts = await import('echarts');
-    chart = echarts.init(chartDiv);
-    updateChart();
-
-    ro = new ResizeObserver(() => chart.resize());
-    ro.observe(chartDiv);
+    chart.setOption(option);
+    const ro = new ResizeObserver(() => chart.resize());
+    ro.observe(chartDom);
   });
 
+  $: if (chart) {
+    chart.setOption({ series: [{ data }] });
+  }
+
   onDestroy(() => {
-    ro?.disconnect();
-    chart?.dispose();
+    if (chart) {
+      chart.dispose();
+    }
   });
 </script>
 
-<div class="w-full h-96 bg-white rounded-lg shadow-md" bind:this={chartDiv}></div>
+<div
+  bind:this={chartDom}
+  style="width: {width}px; height: {height}px;"
+></div>

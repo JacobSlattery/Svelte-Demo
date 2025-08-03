@@ -16,9 +16,8 @@ httpx = ">=0.28.1,<0.29"
 
 [tasks]
 backend = "uvicorn main:app --reload --app-dir backend/app"
-frontend = "npm frontend dev"
-
-build = "npm frontend build"
+frontend = "cd frontend && npm run dev"
+build = "cd frontend && npm run build"
 
 test-backend = "pixi run pytest backend/tests"
 
