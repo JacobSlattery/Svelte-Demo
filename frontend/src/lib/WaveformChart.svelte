@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
-  import * as echarts from 'echarts';
-  import type { ECharts, EChartsOption } from 'echarts';
+  import { onDestroy, onMount } from "svelte";
+  import * as echarts from "echarts";
+  import type { ECharts, EChartsOption } from "echarts";
 
   export let data: [number, number][] = [];
-  export let width = 500;
-  export let height = 400;
+  export let width: number | string = 500;
+  export let height: number | string = 400;
 
   let chartDom: HTMLDivElement;
   let chart: ECharts;
@@ -14,7 +14,7 @@
     chart = echarts.init(chartDom);
 
     const option: EChartsOption = {
-      animation: true,
+      animation: false,
       grid: {
         top: 40,
         left: 50,
@@ -26,17 +26,17 @@
       },
       yAxis: {
         show: false,
-        min: -1,
-        max: 1,
+        min: -10,
+        max: 10,
       },
       series: [
         {
-          type: 'line',
+          type: "line",
           showSymbol: false,
           clip: true,
           data: data
         }
-      ]
+      ],
     };
 
     chart.setOption(option);
@@ -55,7 +55,4 @@
   });
 </script>
 
-<div
-  bind:this={chartDom}
-  style="width: {width}px; height: {height}px;"
-></div>
+<div bind:this={chartDom} style="width: {width}px; height: {height}px;"></div>
