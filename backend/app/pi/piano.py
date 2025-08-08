@@ -4,6 +4,10 @@ from mpmath import mp
 
 from pi.sounds import generate_sine_wave, apply_envelope, phase_align_wave
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 DIGIT_TO_KEY = {
     0: "C4", 1: "D4", 2: "E4", 3: "F4", 4: "G4",
     5: "A4", 6: "B4", 7: "C5", 8: "D5", 9: "E5"
@@ -164,12 +168,12 @@ def play_pi_sequence(digits=100, duration=0.5):
     mp.dps = digits + 2  # Digits + "3."
     pi_digits = str(mp.pi)[2:]  # Remove "3."
 
-    print(f"Playing the first {digits} digits of π as notes...")
+    logger.debug(f"Playing the first {digits} digits of π as notes...")
 
     # Play each digit as a note
     for digit in pi_digits[:digits]:
         key = DIGIT_TO_KEY[int(digit)]
-        print(f"Digit {digit} -> Key {key}")
+        logger.debug(f"Digit {digit} -> Key {key}")
         play_notes(key, duration=duration)
 
 def play_pi_sequence_continuous(digits=100, duration=0.5, crossfade=0.1):
@@ -183,7 +187,7 @@ def play_pi_sequence_continuous(digits=100, duration=0.5, crossfade=0.1):
     mp.dps = digits + 2  # Digits + "3."
     pi_digits = str(mp.pi)[2:]  # Remove "3."
 
-    print(f"Playing the first {digits} digits of π as continuous notes...")
+    logger.debug(f"Playing the first {digits} digits of π as continuous notes...")
 
     combined_wave = []  # Use a Python list for waveform collection
     sample_rate = 44100
@@ -192,22 +196,22 @@ def play_pi_sequence_continuous(digits=100, duration=0.5, crossfade=0.1):
     for i, digit in enumerate(pi_digits[:digits]):
         key = DIGIT_TO_KEY.get(int(digit), None)
         if key is None or key not in PIANO_KEYS:
-            print(f"Digit {digit} -> Key not found in mapping!")
+            logger.debug(f"Digit {digit} -> Key not found in mapping!")
             continue
 
-        print(f"Digit {digit} -> Key {key}")
+        logger.debug(f"Digit {digit} -> Key {key}")
 
         # Generate sine wave
         wave = generate_sine_wave(PIANO_KEYS[key], duration, sample_rate)
-        print(f"Generated wave for {key} with length {len(wave)}")
+        logger.debug(f"Generated wave for {key} with length {len(wave)}")
 
         # Apply smooth attack and decay envelope
         wave = apply_envelope(wave, attack=0.02, decay=0.02)
-        print(f"Applied envelope to wave for {key}")
+        logger.debug(f"Applied envelope to wave for {key}")
 
         # Phase-align wave to ensure it starts and ends near zero-crossing
         wave = phase_align_wave(wave, sample_rate)
-        print(f"Phase-aligned wave for {key}")
+        logger.debug(f"Phase-aligned wave for {key}")
 
         if previous_wave is not None:
             crossfade_samples = min(len(previous_wave), int(sample_rate * crossfade))
@@ -221,7 +225,7 @@ def play_pi_sequence_continuous(digits=100, duration=0.5, crossfade=0.1):
                     wave[:crossfade_samples] * sine_fade
                 )
                 wave = wave[crossfade_samples:]  # Remove blended section
-                print(f"Crossfaded last {crossfade_samples} samples of {key}")
+                logger.debug(f"Crossfaded last {crossfade_samples} samples of {key}")
 
             # Append blended previous wave
             combined_wave.append(previous_wave)
@@ -235,24 +239,24 @@ def play_pi_sequence_continuous(digits=100, duration=0.5, crossfade=0.1):
 
     # Ensure we have valid waveform data
     if not combined_wave:
-        print("No valid waveform generated. Exiting.")
+        logger.debug("No valid waveform generated. Exiting.")
         return
 
     # Convert list to a NumPy array
     combined_wave = np.concatenate(combined_wave)
-    print(f"Final combined wave length: {len(combined_wave)}")
+    logger.debug(f"Final combined wave length: {len(combined_wave)}")
 
     # Normalize waveform to avoid clipping
     max_amplitude = np.max(np.abs(combined_wave))
     if max_amplitude > 0:
         combined_wave = combined_wave / max_amplitude
-    print(f"Waveform normalized. Final length: {len(combined_wave)}")
+    logger.debug(f"Waveform normalized. Final length: {len(combined_wave)}")
 
     # Convert to 16-bit PCM audio format
     audio = (combined_wave * 32767).astype(np.int16)
 
     # Play the final waveform
-    print("Playing audio...")
+    logger.debug("Playing audio...")
     play_obj = sa.play_buffer(audio, num_channels=1, bytes_per_sample=2, sample_rate=sample_rate)
     play_obj.wait_done()
 
@@ -271,7 +275,6 @@ def get_harmonized_note(melody_note, scale_notes, harmony_type="third"):
     try:
         idx = scale_notes.index(melody_note)  # Find the melody note in the scale
     except ValueError:
-        print(f"⚠️ Warning: {melody_note} not in scale! Using root.")
         return scale_notes[0]  # Fallback to root note
 
     harmony_intervals = {
@@ -353,7 +356,7 @@ def play_pi_sequence_with_harmony(
     mp.dps = digits + 2
     pi_digits = str(mp.pi)[2:]  # drop "3."
 
-    print(f"Generating π melody for {digits} digits in key {key_root}…")
+    logger.debug(f"Generating π melody for {digits} digits in key {key_root}…")
 
     sample_rate = 44100
     combined_segments = []
@@ -370,10 +373,10 @@ def play_pi_sequence_with_harmony(
         digit = int(ch)
         key = DIGIT_TO_KEY.get(digit)
         if not key or key not in PIANO_KEYS:
-            print(f"⚠️ Digit {digit} has no mapped key, skipping")
+            logger.debug(f"Digit {digit} has no mapped key, skipping")
             continue
 
-        print(f"🎵 Note {i+1}/{digits}: {key}")
+        logger.debug(f"Note {i+1}/{digits}: {key}")
         # Melody
         mel_wave = generate_sine_wave(PIANO_KEYS[key], melody_dur, sample_rate)
         mel_wave = apply_envelope(mel_wave, attack=0.02, decay=0.02)
@@ -392,7 +395,7 @@ def play_pi_sequence_with_harmony(
             else:  # chordal or default
                 idx = (harmony_idx + h*3) % len(scale_notes)
             note_h = scale_notes[idx]
-            print(f"  🎹 Harmony {h+1}: {note_h}")
+            logger.debug(f"  Harmony {h+1}: {note_h}")
             h_wave = generate_sine_wave(PIANO_KEYS[note_h], harmony_dur, sample_rate)
             h_wave = apply_envelope(h_wave, attack=0.02, decay=0.02)
             h_wave = phase_align_wave(h_wave)
@@ -400,7 +403,7 @@ def play_pi_sequence_with_harmony(
             if octave_doubling:
                 oct_note = increase_octave(note_h)
                 if oct_note in PIANO_KEYS:
-                    print(f"    🎶 Octave double: {oct_note}")
+                    logger.debug(f"    Octave double: {oct_note}")
                     o_wave = generate_sine_wave(PIANO_KEYS[oct_note], harmony_dur, sample_rate)
                     o_wave = apply_envelope(o_wave, attack=0.02, decay=0.02)
                     o_wave = phase_align_wave(o_wave)
@@ -437,12 +440,12 @@ def play_pi_sequence_with_harmony(
 
     # 4) Concatenate & normalize
     if not combined_segments:
-        print("⚠️ No waveform generated.")
+        logger.debug("No waveform generated.")
         return None
     full_wave = np.concatenate(combined_segments)
     max_a = np.max(np.abs(full_wave)) or 1.0
     full_wave = full_wave / max_a
-    print(f"🛠 Built waveform length={len(full_wave)} samples")
+    logger.debug(f"Built waveform length={len(full_wave)} samples")
 
     # 5) Return or play
     if return_wave:
@@ -450,7 +453,7 @@ def play_pi_sequence_with_harmony(
 
     # otherwise play it
     pcm = (full_wave * 32767).astype(np.int16)
-    print("▶️ Playing audio…")
+    logger.debug("Playing audio…")
     obj = sa.play_buffer(pcm, num_channels=1, bytes_per_sample=2, sample_rate=sample_rate)
     obj.wait_done()
     return None

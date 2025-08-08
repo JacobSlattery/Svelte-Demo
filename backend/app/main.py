@@ -1,51 +1,54 @@
 import asyncio
-import math
+from contextlib import suppress
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.websockets import WebSocketState
 import numpy as np
 
+from waveform.computation import compute_wave, flatten_wave_array
 from pi.piano import play_pi_sequence_with_harmony
+
+import logging
 
 app = FastAPI()
 
+COLORS = {
+    'DEBUG': '\033[36m',
+    'INFO': '\033[32m',
+    'WARNING': '\033[33m',
+    'ERROR': '\033[31m',
+    'CRITICAL': '\033[1;31m'
+}
+RESET = '\033[0m'
+
+class ColorFormatter(logging.Formatter):
+    def format(self, record):
+        log_color = COLORS.get(record.levelname, RESET)
+        record.levelname = f"{log_color}{record.levelname}{RESET}"
+        return super().format(record)
+
+handler = logging.StreamHandler()
+handler.setFormatter(ColorFormatter("%(levelname)-8s %(message)s"))
+
+logger = logging.getLogger()
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.get("/")
-async def read_root():
-    return {"message": "Hello from FastAPI!"}
-
-async def compute_wave(
-    frequency: float = 440.0,
-    amplitude: float = 1.0,
-    phase: float = 0.0,
-    samples: int = 100,
-    frame_size: float = 0.1,
-    frame_rate: int = 144
-):
-    dt_sample = frame_size / samples
-    data = []
-    for i in range(samples):
-        t = phase + i * dt_sample
-        x = i * dt_sample
-        y = amplitude * math.sin(2 * math.pi * frequency * t)
-        data.append([x, y])
-
-    # advance start‐time by one frame’s worth, so waveform scrolls:
-    next_phase = phase + (1.0 / frame_rate)
-    return {"data": data, "phase": next_phase}
-
 @app.websocket("/ws/waveform")
 async def websocket_waveform(ws: WebSocket):
-    print("WebSocket connection established")
     await ws.accept()
+    generate_wave = False
     phase = 0.0
     frequency = 1.0
     amplitude = 1.0
@@ -53,31 +56,57 @@ async def websocket_waveform(ws: WebSocket):
     frame_size = 0.1
     frame_rate = 30
 
+    stop = asyncio.Event()
+
     async def recv_settings():
-        nonlocal frequency, amplitude, samples, frame_size, frame_rate
+        nonlocal generate_wave, frequency, amplitude, samples, frame_size, frame_rate
         try:
             while True:
                 data = await ws.receive_json()
+                generate_wave = bool(data.get("generate_wave", generate_wave))
                 frequency = float(data.get("frequency", frequency))
                 amplitude = float(data.get("amplitude", amplitude))
                 samples = int(data.get("samples", samples))
                 frame_size = float(data.get("frame_size", frame_size))
                 frame_rate = int(data.get("frame_rate", frame_rate))
-        except WebSocketDisconnect:
-            return
+        except (WebSocketDisconnect, RuntimeError):
+            pass
+        finally:
+            stop.set()
 
+    async def send_wave():
+        nonlocal generate_wave, frequency, amplitude, phase, samples, frame_size
+        try:
+            while True:
+                if ws.application_state != WebSocketState.CONNECTED:
+                    break
+                if generate_wave:
+                    payload = compute_wave(frequency, amplitude, phase, samples, frame_size)
+                    phase = phase + (1.0 / frame_rate)
+                    await ws.send_bytes(flatten_wave_array(payload))
+                else:
+                    default_wave = [[0, 0], [1, 0]]
+                    await ws.send_bytes(flatten_wave_array(default_wave))
+                await asyncio.sleep(1/frame_rate)
+        except (WebSocketDisconnect, RuntimeError, asyncio.CancelledError):
+            pass
+        finally:
+            stop.set()
+    
     recv_task = asyncio.create_task(recv_settings())
-
+    send_task = asyncio.create_task(send_wave())
+    
     try:
-        while True:
-            payload = await compute_wave(frequency, amplitude, phase, samples, frame_size, frame_rate)
-            await ws.send_json({"data": payload["data"]})
-            phase = payload["phase"]
-            await asyncio.sleep(1/frame_rate)
-    except WebSocketDisconnect:
-        pass
+        await stop.wait()
     finally:
-        recv_task.cancel()
+        for t in (recv_task, send_task):
+            t.cancel()
+        with suppress(asyncio.CancelledError):
+            await recv_task
+        with suppress(asyncio.CancelledError):
+            await send_task
+        with suppress(Exception):
+            await ws.close()
 
 
 @app.get("/api/pi-waveform")
@@ -114,6 +143,7 @@ async def pi_waveform(
 @app.websocket("/ws/pi")
 async def websocket_pi(ws: WebSocket):
     await ws.accept()
+    print("WebSocket connection established for PI waveform generation.")
     cfg = await ws.receive_json()
     digits = cfg.get("digits", 50)
     duration = cfg.get("duration", 1.0)
@@ -124,7 +154,6 @@ async def websocket_pi(ws: WebSocket):
     octave_doubling = cfg.get("octave_doubling", True)
     harmony_movement = cfg.get("harmony_movement", "chordal")
 
-    # 2) generate the full waveform off the event loop
     combined_wave = await run_in_threadpool(
         play_pi_sequence_with_harmony,
         digits=digits,
@@ -138,7 +167,6 @@ async def websocket_pi(ws: WebSocket):
         return_wave=True
     )
 
-    # 3) stream it back in small real-time chunks
     sample_rate = 44100
     chunk_size = 1024
     total = len(combined_wave)

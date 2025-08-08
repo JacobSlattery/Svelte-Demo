@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher  } from "svelte";
-
+  export let generate_wave: boolean;
   export let frequency: number;
   export let amplitude: number;
   export let samples: number;
@@ -10,9 +9,7 @@
   let audioContext: AudioContext;
   let oscillator: OscillatorNode;
   let gainNode: GainNode;
-  let playing = false;
-
-  const dispatch = createEventDispatcher();
+  let playing: boolean = false;
 
   function startSound() {
     audioContext = new AudioContext();
@@ -26,14 +23,12 @@
     oscillator.connect(gainNode).connect(audioContext.destination);
     oscillator.start();
     playing = true;
-    dispatch("play", { playing });
   }
 
   function stopSound() {
     oscillator.stop();
     audioContext.close();
     playing = false;
-    dispatch("play", { playing });
   }
 
   $: if (playing) {
@@ -44,7 +39,6 @@
       gainNode.gain.value = amplitude;
     }
   }
-
 
 </script>
 
@@ -71,8 +65,8 @@
 
   <div>
     <label>
-      Samples:
-      <input type="range" bind:value={samples} min="100" max="1000" step="1" />
+      Samples (Count):
+      <input type="range" bind:value={samples} min="100" max="5000" step="1" />
       {samples.toFixed(2)}
     </label>
   </div>
@@ -92,6 +86,12 @@
       {frame_rate.toFixed(2)}
     </label>
   </div>
+
+  <button
+    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+    on:click={() => generate_wave = !generate_wave}>
+    {generate_wave ? "Stop Wave Generation" : "Start Wave Generation"}
+  </button>
 
   <button
     class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
